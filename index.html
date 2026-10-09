@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de monetização ao vivo</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--bg:#0b1220;--bg2:#13203a;--glass:rgba(255,255,255,.06);--line:rgba(255,255,255,.12);--ink:#f2f5fb;--mute:#93a1ba;--blue:#38bdf8;--green:#4ade80;--violet:#a78bfa}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--ink);background:radial-gradient(1200px 700px at 70% 90%,var(--bg2),var(--bg));background-attachment:fixed;font:15px/1.45 "Trebuchet MS","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+.panel,.card{background:var(--glass);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+h1{margin:0;font-size:1.3rem}h2{margin:0;font-size:1rem}
+small,.mute{color:var(--mute)}
+.tabs{display:flex;gap:6px}.tabs button{background:transparent;color:var(--mute);border:1px solid var(--line);border-radius:10px;padding:8px 14px;font:inherit;cursor:pointer}
+.tabs button.on{background:rgba(56,189,248,.14);color:var(--ink);font-weight:600}
+input,select,button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);min-width:0}
+select option{color:#101a2e}
+button.btn{cursor:pointer;background:linear-gradient(90deg,var(--blue),var(--violet));color:#07101f;border:0;font-weight:700}
+button.ghost{cursor:pointer;background:transparent;color:var(--mute)}
+button.sm{padding:4px 9px;font-size:.8rem}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+label{display:flex;flex-direction:column;font-size:.78rem;color:var(--mute);gap:3px;flex:1 1 150px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.card span{font-size:.8rem;color:var(--mute)}.card b{display:block;font-size:2rem;margin:4px 0;font-variant-numeric:tabular-nums}
+.c1 b{color:var(--green)}.c2 b{color:var(--blue)}.c3 b{color:var(--violet)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;color:var(--green)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:p 1.6s infinite}
+@keyframes p{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
+svg{width:100%;height:auto;display:block}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:9px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:500;font-size:.82rem}
+td input{width:84px;text-align:right;padding:4px 6px}
+textarea{width:100%;height:150px;background:rgba(0,0,0,.3);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:12px/1.4 monospace}
+.hide{display:none}.err{color:#f87171;min-height:1.2em}
+.login{max-width:380px;margin:10vh auto}
+.login label{margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div id="setup" class="panel login hide">
+  <h1>Ligar à base de dados</h1>
+  <p class="mute">Cola os dois dados do teu projeto Supabase (Project Settings → API). Ficam guardados só neste navegador.</p>
+  <label>Project URL<input id="cUrl" placeholder="https://xxxx.supabase.co"></label>
+  <label>anon public key<input id="cKey" placeholder="eyJ..."></label>
+  <button class="btn" id="cSave">Guardar</button><p class="err" id="cErr"></p>
+</div>
+
+<div id="login" class="panel login hide">
+  <h1>Iniciar sessão</h1>
+  <p class="mute">Usa o email e a palavra-passe criados no Supabase.</p>
+  <label>Email<input id="lEmail" type="email" autocomplete="username"></label>
+  <label>Palavra-passe<input id="lPass" type="password" autocomplete="current-password"></label>
+  <button class="btn" id="lGo">Entrar</button><p class="err" id="lErr"></p>
+  <button class="ghost sm" id="reset">Mudar projeto</button>
+</div>
+
+<div id="app" class="hide">
+  <div class="top">
+    <div><small id="today"></small><h1>Olá, Messias</h1><small>Painel de monetização</small><br><span class="live"><i class="dot"></i>ao vivo</span></div>
+    <div class="tabs"><button data-v="painel" class="on">Painel</button><button data-v="sites">Sites</button><button id="out">Sair</button></div>
+  </div>
+
+  <section id="v-painel">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px"><h2>Viewable impressions</h2>
+        <div class="row"><select id="fSite"></select><input type="date" id="dFrom"><span>a</span><input type="date" id="dTo"></div></div>
+      <div id="chart"></div>
+    </div>
+    <div class="cards">
+      <div class="card c1"><span>Estimated revenue</span><b id="kRev">$0.00</b><small>período selecionado</small></div>
+      <div class="card c2"><span>Viewable impressions</span><b id="kViews">0</b><small id="kToday">hoje: 0</small></div>
+      <div class="card c3"><span>Deal type</span><b>CPM</b><small id="kCpm"></small></div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <h2 style="margin-bottom:10px">Ajustar visualizações</h2>
+      <div class="row">
+        <label>Site<select id="aSite"></select></label>
+        <label>Dia (UTC)<input type="date" id="aDay"></label>
+        <label>Número<input type="number" id="aVal" placeholder="ex.: 12000 ou -500"></label>
+        <button class="btn" id="aSet">Definir total do dia</button>
+        <button class="ghost" id="aAdd">Somar / subtrair</button>
+      </div>
+      <p class="mute" id="aMsg">"Definir" fixa o total desse dia. "Somar / subtrair" aplica o número (negativo diminui). A contagem automática continua a somar por cima.</p>
+    </div>
+  </section>
+
+  <section id="v-sites" class="hide">
+    <div class="panel">
+      <h2 style="margin-bottom:10px">Cadastro de sites</h2>
+      <div class="row" style="margin-bottom:12px">
+        <label>Nome<input id="sName" placeholder="O meu blog"></label>
+        <label>Endereço (opcional)<input id="sUrl" placeholder="meusite.com"></label>
+        <label>CPM ($ por 1.000)<input id="sCpm" type="number" step="0.01" min="0" value="0.30"></label>
+        <button class="btn" id="addSite">Adicionar site</button>
+      </div>
+      <div class="scroll"><table><thead><tr><th>Site</th><th>Impressões (período)</th><th>CPM</th><th>Receita</th><th></th></tr></thead><tbody id="sites"></tbody></table></div>
+      <p class="mute" id="noSites">Ainda não tens sites.</p>
+    </div>
+    <div class="panel hide" id="snipBox">
+      <h2 style="margin-bottom:6px">Código de contagem de <span id="snipName"></span></h2>
+      <p class="mute">Cola isto no HTML do site, ao lado do script da Clever.</p>
+      <textarea id="snip" readonly></textarea>
+      <button class="btn sm" id="copy" style="margin-top:8px">Copiar</button>
+    </div>
+  </section>
+</div>
+</div>
+
+<script>
+(function(){
+var CK="monetiza-cfg",cfg=null,db=null,sites=[],rows=[],view="painel",timer=null,sel=null;
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function money(n){return "$"+n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function num(n){return Math.round(n).toLocaleString("pt-PT")}
+function iso(d){return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0")}
+function show(id){["setup","login","app"].forEach(function(x){$(x).classList.toggle("hide",x!==id)})}
+function site(id){return sites.filter(function(s){return s.id===id})[0]}
+
+function start(){
+  try{cfg=JSON.parse(localStorage.getItem(CK))}catch(e){cfg=null}
+  if(!cfg){show("setup");return}
+  db=supabase.createClient(cfg.url,cfg.key);
+  db.auth.getSession().then(function(r){if(r.data.session)enter();else show("login")});
+}
+$("cSave").onclick=function(){
+  var u=$("cUrl").value.trim().replace(/\/$/,""),k=$("cKey").value.trim();
+  if(!/^https:\/\/.+\.supabase\.co$/.test(u)||k.length<20){$("cErr").textContent="Confirma o URL e a chave.";return}
+  try{localStorage.setItem(CK,JSON.stringify({url:u,key:k}))}catch(e){}
+  start();
+};
+$("reset").onclick=function(){try{localStorage.removeItem(CK)}catch(e){}show("setup")};
+$("lGo").onclick=function(){
+  db.auth.signInWithPassword({email:$("lEmail").value.trim(),password:$("lPass").value}).then(function(r){
+    if(r.error){var m=r.error.message||"";$("lErr").textContent=/fetch|load failed|network/i.test(m)?"Sem ligação ao Supabase. Confirma o URL e a chave, ou abre o ficheiro no Chrome.":(/invalid login/i.test(m)?"Email ou palavra-passe errados.":"Erro: "+m);return}enter()})
+};
+$("out").onclick=function(){db.auth.signOut().then(function(){show("login")})};
+
+function enter(){
+  show("app");
+  var t=new Date().toLocaleDateString("pt-PT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});$("today").textContent=t.charAt(0).toUpperCase()+t.slice(1);
+  var n=new Date(),f=new Date();f.setUTCDate(n.getUTCDate()-6);
+  if(!$("dFrom").value){$("dFrom").value=iso(f);$("dTo").value=iso(n)}
+  if(!$("aDay").value)$("aDay").value=iso(n);
+  refresh();
+  db.channel("hits-live").on("postgres_changes",{event:"*",schema:"public",table:"hits"},function(){clearTimeout(timer);timer=setTimeout(refresh,1500)}).subscribe();
+  setInterval(refresh,60000);
+}
+function refresh(){
+  db.from("sites").select("*").order("created_at").then(function(r){
+    sites=r.data||[];
+    var a=$("dFrom").value,b=$("dTo").value; if(!a||!b||a>b){draw();return}
+    var td=iso(new Date()),from=a<td?a:td;
+    db.rpc("daily",{p_from:from,p_to:b>td?b:td,p_site:null}).then(function(q){rows=q.data||[];draw()});
+  });
+}
+function draw(){
+  var cur=$("fSite").value;
+  $("fSite").innerHTML='<option value="">Todos os sites</option>'+sites.map(function(s){return'<option value="'+s.id+'">'+esc(s.name)+'</option>'}).join("");
+  $("fSite").value=site(cur)?cur:"";
+  var av=$("aSite").value;$("aSite").innerHTML=sites.map(function(s){return'<option value="'+s.id+'">'+esc(s.name)+'</option>'}).join("");if(site(av))$("aSite").value=av;
+  var a=$("dFrom").value,b=$("dTo").value,f=$("fSite").value,td=iso(new Date()),tv=0,tr=0,tod=0,m={},byS={};
+  rows.forEach(function(r){var s=site(r.site_id);if(!s)return;
+    if((!f||r.site_id===f)&&r.day===td)tod+=r.views;
+    if(r.day>=a&&r.day<=b){byS[r.site_id]=(byS[r.site_id]||0)+r.views;if(!f||r.site_id===f){tv+=r.views;tr+=r.views/1000*s.cpm;m[r.day]=(m[r.day]||0)+r.views}}});
+  $("kRev").textContent=money(tr);$("kViews").textContent=num(tv);$("kToday").textContent="hoje: "+num(tod);
+  var one=f?site(f):null;$("kCpm").textContent=one?money(one.cpm)+" por 1.000 impressões":(sites.length?"Média "+money(tv?tr/tv*1000:0)+" por 1.000 impressões":"$0.30 por 1.000 impressões");
+  chart(a,b,m);
+  $("noSites").classList.toggle("hide",sites.length>0);
+  $("sites").innerHTML=sites.map(function(s){var v=byS[s.id]||0;
+    return'<tr><td>'+esc(s.name)+(s.url?' <small>'+esc(s.url)+'</small>':'')+'</td><td>'+num(v)+'</td><td><input type="number" step="0.01" min="0" data-cpm="'+s.id+'" value="'+s.cpm+'"></td><td>'+money(v/1000*s.cpm)+'</td><td><button class="ghost sm" data-code="'+s.id+'">Código</button> <button class="ghost sm" data-del="'+s.id+'">Remover</button></td></tr>'}).join("");
+}
+function curve(p){var d="M"+p[0][0]+","+p[0][1];for(var i=1;i<p.length;i++){var x=(p[i-1][0]+p[i][0])/2;d+=" C"+x+","+p[i-1][1]+" "+x+","+p[i][1]+" "+p[i][0]+","+p[i][1]}return d}
+function chart(a,b,m){
+  if(!a||!b||a>b){$("chart").innerHTML='<p class="mute">Escolhe um intervalo de datas válido.</p>';return}
+  var days=[],d=new Date(a+"T00:00:00Z"),e=new Date(b+"T00:00:00Z"),g=0;
+  while(d<=e&&g<400){days.push(iso(d));d.setUTCDate(d.getUTCDate()+1);g++}
+  var v=days.map(function(k){return m[k]||0}),mx=Math.max.apply(null,v.concat([10])),st=Math.pow(10,Math.floor(Math.log10(mx))),top=Math.ceil(mx/st)*st;
+  var W=700,H=230,L=58,R=12,T=10,B=26,n=days.length,pw=W-L-R,ph=H-T-B;
+  var pts=v.map(function(y,i){return[L+(n>1?i/(n-1)*pw:pw/2),T+ph-y/top*ph]});
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Impressões por dia"><defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".45"/><stop offset="1" stop-color="#38bdf8" stop-opacity=".02"/></linearGradient></defs>';
+  for(var i=0;i<=4;i++){var yy=T+ph-i/4*ph;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="rgba(255,255,255,.12)"/><text x="'+(L-6)+'" y="'+(yy+4)+'" text-anchor="end" font-size="11" fill="#93a1ba">'+num(top*i/4)+'</text>'}
+  var c=curve(pts),ev=Math.ceil(n/7);
+  s+='<path d="'+c+' L'+pts[n-1][0]+','+(T+ph)+' L'+pts[0][0]+','+(T+ph)+' Z" fill="url(#gf)"/><path d="'+c+'" fill="none" stroke="#38bdf8" stroke-width="2.2"/>';
+  days.forEach(function(k,i){if(i%ev===0||i===n-1)s+='<text x="'+pts[i][0]+'" y="'+(H-8)+'" text-anchor="middle" font-size="11" fill="#93a1ba">'+k.slice(8)+"/"+k.slice(5,7)+'</text>';s+='<circle cx="'+pts[i][0]+'" cy="'+pts[i][1]+'" r="5" fill="transparent"><title>'+k.split("-").reverse().join("/")+": "+num(v[i])+'</title></circle>'});
+  $("chart").innerHTML=s+"</svg>";
+}
+$("addSite").onclick=function(){var n=$("sName").value.trim(),c=parseFloat($("sCpm").value);if(!n){$("sName").focus();return}
+  db.from("sites").insert({name:n,url:$("sUrl").value.trim()||null,cpm:isNaN(c)?0.30:c}).select().then(function(r){if(r.error){alert("Erro: "+r.error.message);return}
+    $("sName").value="";$("sUrl").value="";sel=r.data[0].id;refresh();setTimeout(function(){code(sel)},400)})};
+function code(id){var s=site(id);if(!s)return;
+  $("snipName").textContent=s.name;$("snipBox").classList.remove("hide");
+  $("snip").value='<script>\n(function(){\n  try{\n    fetch("'+cfg.url+'/rest/v1/rpc/track",{\n      method:"POST",keepalive:true,\n      headers:{"apikey":"'+cfg.key+'","Authorization":"Bearer '+cfg.key+'","Content-Type":"application/json"},\n      body:JSON.stringify({p_site:"'+id+'"})\n    }).catch(function(){});\n  }catch(e){}\n})();\n<\/script>'}
+$("copy").onclick=function(){var t=$("snip");t.select();try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand("copy")}this.textContent="Copiado";var b=this;setTimeout(function(){b.textContent="Copiar"},1500)};
+document.addEventListener("click",function(ev){var t=ev.target,x;
+  if(x=t.getAttribute("data-code"))code(x);
+  else if(x=t.getAttribute("data-del")){if(confirm("Remover este site e todas as suas impressões?"))db.from("sites").delete().eq("id",x).then(refresh)}
+  else if(x=t.getAttribute("data-v")){view=x;$("v-painel").classList.toggle("hide",x!=="painel");$("v-sites").classList.toggle("hide",x!=="sites");Array.prototype.forEach.call(document.querySelectorAll(".tabs button[data-v]"),function(b){b.classList.toggle("on",b===t)})}});
+document.addEventListener("change",function(ev){var t=ev.target,id=t.getAttribute&&t.getAttribute("data-cpm");
+  if(id)db.from("sites").update({cpm:Math.max(0,parseFloat(t.value)||0)}).eq("id",id).then(refresh)});
+function adj(set){
+  var s=$("aSite").value,d=$("aDay").value,v=parseInt($("aVal").value,10),m=$("aMsg");
+  if(!s||!d||isNaN(v)){m.textContent="Escolhe o site, o dia e um número.";return}
+  if(set&&v<0){m.textContent="O total do dia não pode ser negativo.";return}
+  m.textContent="A guardar...";
+  db.rpc("adjust_views",{p_site:s,p_day:d,p_value:v,p_set:set}).then(function(r){
+    if(r.error){m.textContent=/adjust_views|function/i.test(r.error.message)?"Falta correr o SQL de ajuste no Supabase.":"Erro: "+r.error.message;return}
+    m.textContent="Feito. Total desse dia: "+num(r.data);$("aVal").value="";refresh()})
+}
+$("aSet").onclick=function(){adj(true)};$("aAdd").onclick=function(){adj(false)};
+["fSite","dFrom","dTo"].forEach(function(i){$(i).onchange=refresh});
+if(!$("cUrl").value)$("cUrl").value="https://wslkzzjlkybcikovhxyw.supabase.co";
+start();
+})();
+</script>
+</body>
+</html>

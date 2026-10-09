@@ -71,7 +71,7 @@ textarea{width:100%;height:150px;background:rgba(0,0,0,.3);color:var(--ink);bord
   <section id="v-painel">
     <div class="panel">
       <div class="row" style="justify-content:space-between;margin-bottom:10px"><h2>Viewable impressions</h2>
-        <div class="row"><select id="fSite"></select><input type="date" id="dFrom"><span>a</span><input type="date" id="dTo"></div></div>
+        <div class="row"><select id="fSite"></select><input type="date" id="dFrom"><span>a</span><input type="date" id="dTo"><button class="ghost sm" data-q="7">7 dias</button><button class="ghost sm" data-q="30">30 dias</button><button class="ghost sm" data-q="90">90 dias</button></div></div>
       <div id="chart"></div>
     </div>
     <div class="cards">
@@ -147,7 +147,7 @@ $("out").onclick=function(){db.auth.signOut().then(function(){show("login")})};
 function enter(){
   show("app");
   var t=new Date().toLocaleDateString("pt-PT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});$("today").textContent=t.charAt(0).toUpperCase()+t.slice(1);
-  var n=new Date(),f=new Date();f.setUTCDate(n.getUTCDate()-6);
+  var n=new Date(),f=new Date();f.setUTCDate(n.getUTCDate()-29);
   if(!$("dFrom").value){$("dFrom").value=iso(f);$("dTo").value=iso(n)}
   if(!$("aDay").value)$("aDay").value=iso(n);
   refresh();
@@ -203,6 +203,7 @@ $("copy").onclick=function(){var t=$("snip");t.select();try{navigator.clipboard.
 document.addEventListener("click",function(ev){var t=ev.target,x;
   if(x=t.getAttribute("data-code"))code(x);
   else if(x=t.getAttribute("data-del")){if(confirm("Remover este site e todas as suas impressões?"))db.from("sites").delete().eq("id",x).then(refresh)}
+  else if(x=t.getAttribute("data-q")){var e2=new Date(),f2=new Date();f2.setUTCDate(e2.getUTCDate()-(+x-1));$("dFrom").value=iso(f2);$("dTo").value=iso(e2);refresh()}
   else if(x=t.getAttribute("data-v")){view=x;$("v-painel").classList.toggle("hide",x!=="painel");$("v-sites").classList.toggle("hide",x!=="sites");Array.prototype.forEach.call(document.querySelectorAll(".tabs button[data-v]"),function(b){b.classList.toggle("on",b===t)})}});
 document.addEventListener("change",function(ev){var t=ev.target,id=t.getAttribute&&t.getAttribute("data-cpm");
   if(id)db.from("sites").update({cpm:Math.max(0,parseFloat(t.value)||0)}).eq("id",id).then(refresh)});

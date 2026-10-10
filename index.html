@@ -85,6 +85,7 @@ textarea{width:100%;height:150px;background:rgba(0,0,0,.3);color:var(--ink);bord
         <label>Site<select id="aSite"></select></label>
         <label>Dia (UTC)<input type="date" id="aDay"></label>
         <label>Número<input type="number" id="aVal" placeholder="ex.: 12000 ou -500"></label>
+        <label>Senha de ajuste<input type="password" id="aPass" autocomplete="off" placeholder="senha de ajuste"></label>
         <button class="btn" id="aSet">Definir total do dia</button>
         <button class="ghost" id="aAdd">Somar / subtrair</button>
       </div>
@@ -202,19 +203,35 @@ function code(id){var s=site(id);if(!s)return;
 $("copy").onclick=function(){var t=$("snip");t.select();try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand("copy")}this.textContent="Copiado";var b=this;setTimeout(function(){b.textContent="Copiar"},1500)};
 document.addEventListener("click",function(ev){var t=ev.target,x;
   if(x=t.getAttribute("data-code"))code(x);
-  else if(x=t.getAttribute("data-del")){if(confirm("Remover este site e todas as suas impressões?"))db.from("sites").delete().eq("id",x).then(refresh)}
+  else if(x=t.getAttribute("data-del")){if(confirm("Remover este site e todas as suas impressões?"))askPass("Para remover o site, confirma a senha.",function(pw){if(pw===null)return;db.rpc("delete_site",{p_site:x,p_pass:pw}).then(function(r){var m=r.error?(/delete_site|function/i.test(r.error.message)?"Falta correr o SQL novo no Supabase.":"Erro: "+r.error.message):passMsg(Number(r.data));if(m)alert(m);refresh()})})}
   else if(x=t.getAttribute("data-q")){var e2=new Date(),f2=new Date();f2.setUTCDate(e2.getUTCDate()-(+x-1));$("dFrom").value=iso(f2);$("dTo").value=iso(e2);refresh()}
   else if(x=t.getAttribute("data-v")){view=x;$("v-painel").classList.toggle("hide",x!=="painel");$("v-sites").classList.toggle("hide",x!=="sites");Array.prototype.forEach.call(document.querySelectorAll(".tabs button[data-v]"),function(b){b.classList.toggle("on",b===t)})}});
 document.addEventListener("change",function(ev){var t=ev.target,id=t.getAttribute&&t.getAttribute("data-cpm");
-  if(id)db.from("sites").update({cpm:Math.max(0,parseFloat(t.value)||0)}).eq("id",id).then(refresh)});
+  if(id){var val=Math.max(0,parseFloat(t.value)||0);askPass("Para mudar o CPM, confirma a senha.",function(pw){if(pw===null){refresh();return}db.rpc("set_cpm",{p_site:id,p_cpm:val,p_pass:pw}).then(function(r){var m=r.error?(/set_cpm|function/i.test(r.error.message)?"Falta correr o SQL novo no Supabase.":"Erro: "+r.error.message):passMsg(Number(r.data));if(m)alert(m);refresh()})})}});
+function askPass(msg,cb){
+  var o=document.createElement("div");
+  o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:9;padding:16px";
+  o.innerHTML='<div class="panel" style="max-width:340px;width:100%;margin:0"><h2 style="margin-bottom:8px">Senha de ajuste</h2><p class="mute" style="margin:0 0 10px">'+msg+'</p><input type="password" id="pp" autocomplete="off" style="width:100%"><div class="row" style="margin-top:10px"><button class="btn" id="ppok">Confirmar</button><button class="ghost" id="ppno">Cancelar</button></div><p class="err" id="ppe"></p></div>';
+  document.body.appendChild(o);var i=o.querySelector("#pp");i.focus();
+  function close(){document.body.removeChild(o)}
+  o.querySelector("#ppno").onclick=function(){close();cb(null)};
+  o.querySelector("#ppok").onclick=function(){var v=i.value;if(!v){o.querySelector("#ppe").textContent="Escreve a senha.";return}close();cb(v)};
+}
+function passMsg(c){return c===-1?"Senha de ajuste errada.":c===-2?"Demasiadas tentativas. Tenta daqui a 15 minutos.":c===-3?"A senha de ajuste ainda não foi definida no Supabase.":null}
 function adj(set){
   var s=$("aSite").value,d=$("aDay").value,v=parseInt($("aVal").value,10),m=$("aMsg");
+  var pw=$("aPass").value;
   if(!s||!d||isNaN(v)){m.textContent="Escolhe o site, o dia e um número.";return}
+  if(!pw){m.textContent="Escreve a senha de ajuste.";return}
   if(set&&v<0){m.textContent="O total do dia não pode ser negativo.";return}
   m.textContent="A guardar...";
-  db.rpc("adjust_views",{p_site:s,p_day:d,p_value:v,p_set:set}).then(function(r){
+  db.rpc("adjust_views",{p_site:s,p_day:d,p_value:v,p_set:set,p_pass:pw}).then(function(r){
     if(r.error){m.textContent=/adjust_views|function/i.test(r.error.message)?"Falta correr o SQL de ajuste no Supabase.":"Erro: "+r.error.message;return}
-    m.textContent="Feito. Total desse dia: "+num(r.data);$("aVal").value="";refresh()})
+    var c=Number(r.data);
+    if(c===-1){m.textContent="Senha de ajuste errada.";return}
+    if(c===-2){m.textContent="Demasiadas tentativas. Tenta daqui a 15 minutos.";return}
+    if(c===-3){m.textContent="A senha de ajuste ainda não foi definida no Supabase.";return}
+    m.textContent="Feito. Total desse dia: "+num(c);$("aVal").value="";$("aPass").value="";refresh()})
 }
 $("aSet").onclick=function(){adj(true)};$("aAdd").onclick=function(){adj(false)};
 ["fSite","dFrom","dTo"].forEach(function(i){$(i).onchange=refresh});
